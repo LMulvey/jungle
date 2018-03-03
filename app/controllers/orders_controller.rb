@@ -34,12 +34,17 @@ class OrdersController < ApplicationController
     Stripe::Charge.create(
       source:      params[:stripeToken],
       amount:      cart_total, # in cents
-      description: "#{@current_user.name}'s Jungle Order",
+      description: "#{current_user.name}'s Jungle Order",
       currency:    'cad'
     )
   end
 
   def create_order(stripe_charge)
+    order = Order.new(
+      email: params[:stripeEmail],
+      total_cents: cart_total,
+      stripe_charge_id: stripe_charge.id, # returned by stripe
+    )
     cart.each do |product_id, details|
       if product = Product.find_by(id: product_id)
         quantity = details['quantity'].to_i
@@ -51,12 +56,8 @@ class OrdersController < ApplicationController
         )
       end
     end
-    order = Order.new(
-      email: params[:stripeEmail],
-      total_cents: cart_total,
-      stripe_charge_id: stripe_charge.id, # returned by stripe
-    )
     order.save!
+    UserMailer.receipt_email(current_user.email, order).deliver_now
     order
   end
 
